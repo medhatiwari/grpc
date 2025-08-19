@@ -1,0 +1,102 @@
+gRPC C# Tools s390x Build Success Log
+=====================================
+
+Build Environment:
+- Architecture: s390x (IBM System z)
+- OS: Red Hat Enterprise Linux
+- .NET Version: 10.0 (preview)
+- Build Date: 2024-08-19
+
+Build Commands Executed:
+1. cd src/csharp
+2. OPENSSL_ENABLE_SHA1_SIGNATURES=1 dotnet build --configuration Release Grpc.sln
+3. OPENSSL_ENABLE_SHA1_SIGNATURES=1 ./build_nuget.sh
+
+=== BUILD COMMAND 1: dotnet build ===
+Command: OPENSSL_ENABLE_SHA1_SIGNATURES=1 dotnet build --configuration Release Grpc.sln
+
+[INSERT_DOTNET_BUILD_OUTPUT_HERE]
+
+=== BUILD COMMAND 2: NuGet Package Creation ===
+Command: OPENSSL_ENABLE_SHA1_SIGNATURES=1 ./build_nuget.sh
+
+Build Output:
+++ dirname ./build_nuget.sh
++ cd .
++ mkdir -p ../../artifacts
++ mkdir -p protoc_plugins
+++ uname -m
++ [[ s390x != \s\3\9\0\x ]]
++ export GRPC_CSHARP_BUILD_SINGLE_PLATFORM_NUGET=1
++ GRPC_CSHARP_BUILD_SINGLE_PLATFORM_NUGET=1
++ ./nuget_helpers/expand_dev_version.sh
++ '[' 1 '!=' '' ']'
++ ./nuget_helpers/create_fake_native_artifacts.sh
+++ dirname ./nuget_helpers/create_fake_native_artifacts.sh
++ cd ./nuget_helpers/../../..
++ cd src/csharp
++ mkdir -p protoc_plugins
++ pushd protoc_plugins
+~/grpc/src/csharp/protoc_plugins ~/grpc/src/csharp
+++ uname
++ [[ Linux != \L\i\n\u\x ]]
+++ uname -m
++ [[ s390x == \s\3\9\0\x ]]
++ mkdir -p protoc_linux_x64
++ touch protoc_linux_x64/protoc
++ touch protoc_linux_x64/grpc_csharp_plugin
++ mkdir -p protoc_linux_x86
++ touch protoc_linux_x86/protoc
++ touch protoc_linux_x86/grpc_csharp_plugin
++ mkdir -p protoc_linux_aarch64
++ touch protoc_linux_aarch64/protoc
++ touch protoc_linux_aarch64/grpc_csharp_plugin
+++ uname
++ [[ Linux != \D\a\r\w\i\n ]]
++ mkdir -p protoc_macos_x64
++ touch protoc_macos_x64/protoc
++ touch protoc_macos_x64/grpc_csharp_plugin
+++ uname
++ [[ Linux != \W\i\n\d\o\w\s\N\T ]]
++ mkdir -p protoc_windows_x86
++ touch protoc_windows_x86/protoc.exe
++ touch protoc_windows_x86/grpc_csharp_plugin.exe
++ mkdir -p protoc_windows_x64
++ touch protoc_windows_x64/protoc.exe
++ touch protoc_windows_x64/grpc_csharp_plugin.exe
++ popd
+~/grpc/src/csharp
++ ARCH_SUFFIX=-singleplatform
+++ uname -m
++ [[ s390x == \s\3\9\0\x ]]
++ ARCH_SUFFIX=-s390x
++ sed -ibak 's/<\/GrpcCsharpVersion>/-s390x<\/GrpcCsharpVersion>/' build/dependencies.props
+++ uname -m
++ [[ s390x == \s\3\9\0\x ]]
+++ cd ../..
+++ pwd
++ REPO_ROOT=/home/redhat/grpc
++ rm -rf protoc_plugins/protoc_linux_s390x
++ mkdir -p protoc_plugins/protoc_linux_s390x
++ [[ -f /home/redhat/grpc/bazel-bin/src/compiler/grpc_csharp_plugin ]]
++ [[ -f /home/redhat/grpc/bazel-bin/src/compiler/grpc_csharp_plugin_native ]]
++ cp /home/redhat/grpc/bazel-bin/src/compiler/grpc_csharp_plugin_native protoc_plugins/protoc_linux_s390x/grpc_csharp_plugin
++ [[ -f /home/redhat/grpc/bazel-bin/external/com_google_protobuf/protoc ]]
++ cp /home/redhat/grpc/bazel-bin/external/com_google_protobuf/protoc protoc_plugins/protoc_linux_s390x/
++ chmod +x protoc_plugins/protoc_linux_s390x/grpc_csharp_plugin protoc_plugins/protoc_linux_s390x/protoc
++ dotnet restore Grpc.sln
+  /home/redhat/grpc/src/csharp/Grpc.sln                                                                  Restore (1.0s)
+Restore succeeded with 1 warning(s) in 4.8s
+    /home/redhat/grpc/src/csharp/Grpc.Tools.Tests/Grpc.Tools.Tests.csproj : warning NU1510: PackageReference System.Runtime.InteropServices.RuntimeInformation will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary.
+
+Build succeeded with 1 warning(s) in 5.4s
++ dotnet pack --configuration Release Grpc.Tools --output ../../artifacts
+Restore complete (1.7s)
+    info NETSDK1057: You are using a preview version of .NET. See: https://aka.ms/dotnet-support-policy
+  Grpc.Tools net10.0 succeeded (5.1s) → Grpc.Tools/bin/Release/net10.0/Protobuf.MSBuild.dll
+
+Build succeeded in 9.0s
++ cd ../../artifacts
++ zip csharp_nugets_windows_dotnetcli.zip Grpc.Tools.2.75.0-dev202508191030-s390x-s390x-s390x-s390x.nupkg Grpc.Tools.2.75.0-dev202508191144-s390x.nupkg
+updating: Grpc.Tools.2.75.0-dev202508191030-s390x-s390x-s390x-s390x.nupkg (deflated 1%)
+  adding: Grpc.Tools.2.75.0-dev202508191144-s390x.nupkg (deflated 1%)

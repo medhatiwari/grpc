@@ -1,0 +1,483 @@
+diff --git a/grpc_s390x_final.patch b/grpc_s390x_final.patch
+new file mode 100644
+index 0000000000..8e5a3167d3
+--- /dev/null
++++ b/grpc_s390x_final.patch
+@@ -0,0 +1,162 @@
++diff --git a/src/csharp/Grpc.Tools.Tests/ProtoToolsPlatformTaskTest.cs b/src/csharp/Grpc.Tools.Tests/ProtoToolsPlatformTaskTest.cs
++index 51b65c5bee..3aa749b677 100644
++--- a/src/csharp/Grpc.Tools.Tests/ProtoToolsPlatformTaskTest.cs
+++++ b/src/csharp/Grpc.Tools.Tests/ProtoToolsPlatformTaskTest.cs
++@@ -91,6 +91,16 @@ namespace Grpc.Tools.Tests
++             }
++         }
++ 
+++        [Test]
+++        public void CpuIsS390x()
+++        {
+++            if (RuntimeInformation.OSArchitecture == Architecture.S390x)
+++            {
+++                _cpuMatched++;
+++                Assert.AreEqual("s390x", _task.Cpu);
+++            }
+++        }
+++
++         [Test]
++         public void OsIsWindows()
++         {
++diff --git a/src/csharp/Grpc.Tools/CommonPlatformDetection.cs b/src/csharp/Grpc.Tools/CommonPlatformDetection.cs
++index 56e24b877b..8f6aa4b9de 100644
++--- a/src/csharp/Grpc.Tools/CommonPlatformDetection.cs
+++++ b/src/csharp/Grpc.Tools/CommonPlatformDetection.cs
++@@ -29,7 +29,7 @@ namespace Grpc.Core.Internal
++     internal static class CommonPlatformDetection
++     {
++         public enum OSKind { Unknown, Windows, Linux, MacOSX };
++-        public enum CpuArchitecture { Unknown, X86, X64, Arm64 };
+++        public enum CpuArchitecture { Unknown, X86, X64, Arm64, S390x };
++ 
++         public static OSKind GetOSKind()
++         {
++@@ -85,6 +85,8 @@ namespace Grpc.Core.Internal
++                     return CpuArchitecture.X64;
++                 case Architecture.Arm64:
++                     return CpuArchitecture.Arm64;
+++                case Architecture.S390x:
+++                    return CpuArchitecture.S390x;
++                 // We do not support other architectures,
++                 // so we simply return "unrecognized".
++                 default: 
++diff --git a/src/csharp/Grpc.Tools/Grpc.Tools.csproj b/src/csharp/Grpc.Tools/Grpc.Tools.csproj
++index 725fd3e0e3..51a8c77380 100644
++--- a/src/csharp/Grpc.Tools/Grpc.Tools.csproj
+++++ b/src/csharp/Grpc.Tools/Grpc.Tools.csproj
++@@ -58,6 +58,7 @@
++     <_Asset PackagePath="tools/linux_x86/" Include="$(Assets_ProtoCompiler)linux_x86/protoc" />
++     <_Asset PackagePath="tools/linux_x64/" Include="$(Assets_ProtoCompiler)linux_x64/protoc" />
++     <_Asset PackagePath="tools/linux_arm64/" Include="$(Assets_ProtoCompiler)linux_aarch64/protoc" />
+++    <_Asset PackagePath="tools/linux_s390x/" Include="$(Assets_ProtoCompiler)linux_s390x/protoc" />
++     <_Asset PackagePath="tools/macosx_x64/" Include="$(Assets_ProtoCompiler)macos_x64/protoc" /> 
++ 
++     <!-- gRPC protocol buffer compiler plugins -->
++@@ -66,6 +67,7 @@
++     <_Asset PackagePath="tools/linux_x86/" Include="$(Assets_GrpcPlugins)protoc_linux_x86/grpc_csharp_plugin" />
++     <_Asset PackagePath="tools/linux_x64/" Include="$(Assets_GrpcPlugins)protoc_linux_x64/grpc_csharp_plugin" />
++     <_Asset PackagePath="tools/linux_arm64/" Include="$(Assets_GrpcPlugins)protoc_linux_aarch64/grpc_csharp_plugin" />
+++    <_Asset PackagePath="tools/linux_s390x/" Include="$(Assets_GrpcPlugins)protoc_linux_s390x/grpc_csharp_plugin" />
++     <_Asset PackagePath="tools/macosx_x64/" Include="$(Assets_GrpcPlugins)protoc_macos_x64/grpc_csharp_plugin" />
++ 
++     <None Include="@(_Asset)" Pack="true" Visible="false" />
++diff --git a/src/csharp/Grpc.Tools/ProtoToolsPlatform.cs b/src/csharp/Grpc.Tools/ProtoToolsPlatform.cs
++index 0bb57317b4..cb3b800332 100644
++--- a/src/csharp/Grpc.Tools/ProtoToolsPlatform.cs
+++++ b/src/csharp/Grpc.Tools/ProtoToolsPlatform.cs
++@@ -57,6 +57,7 @@ namespace Grpc.Tools
++                 case CommonPlatformDetection.CpuArchitecture.X86: Cpu = "x86"; break;
++                 case CommonPlatformDetection.CpuArchitecture.X64: Cpu = "x64"; break;
++                 case CommonPlatformDetection.CpuArchitecture.Arm64: Cpu = "arm64"; break;
+++                case CommonPlatformDetection.CpuArchitecture.S390x: Cpu = "s390x"; break;
++                 default: Cpu = ""; break;
++             }
++ 
++diff --git a/src/csharp/build_nuget.sh b/src/csharp/build_nuget.sh
++index a521e003c5..4d1962bb28 100755
++--- a/src/csharp/build_nuget.sh
+++++ b/src/csharp/build_nuget.sh
++@@ -20,8 +20,14 @@ cd "$(dirname "$0")"
++ mkdir -p ../../artifacts
++ 
++ # Collect protoc artifacts built by the previous build step
+++# On s390x, we build locally instead of using prebuilt artifacts
++ mkdir -p protoc_plugins
++-cp -r "${EXTERNAL_GIT_ROOT}"/input_artifacts/protoc_* protoc_plugins || true
+++if [[ "$(uname -m)" != "s390x" ]]; then
+++    cp -r "${EXTERNAL_GIT_ROOT}"/input_artifacts/protoc_* protoc_plugins || true
+++else
+++    # For s390x, enable single-platform build mode
+++    export GRPC_CSHARP_BUILD_SINGLE_PLATFORM_NUGET=1
+++fi
++ 
++ # Add current timestamp to dev nugets
++ ./nuget_helpers/expand_dev_version.sh
++@@ -47,7 +53,39 @@ then
++   # add a suffix to the nuget's version
++   # to avoid confusing the package with a full nuget package.
++   # NOTE: adding the suffix must be done AFTER expand_dev_version.sh has run.
++-  sed -ibak "s/<\/GrpcCsharpVersion>/-singleplatform<\/GrpcCsharpVersion>/" build/dependencies.props
+++  ARCH_SUFFIX="-singleplatform"
+++  if [[ "$(uname -m)" == "s390x" ]]; then
+++      ARCH_SUFFIX="-s390x"
+++  fi
+++  sed -ibak "s/<\/GrpcCsharpVersion>/${ARCH_SUFFIX}<\/GrpcCsharpVersion>/" build/dependencies.props
+++fi
+++
+++# Copy locally built s390x binaries if available
+++if [[ "$(uname -m)" == "s390x" ]]; then
+++    REPO_ROOT="$(cd ../.. && pwd)"
+++    
+++    # Clean and recreate the s390x directory to avoid permission issues
+++    rm -rf protoc_plugins/protoc_linux_s390x
+++    mkdir -p protoc_plugins/protoc_linux_s390x
+++    
+++    # Try different possible grpc_csharp_plugin names from Bazel build
+++    if [[ -f "$REPO_ROOT/bazel-bin/src/compiler/grpc_csharp_plugin" ]]; then
+++        cp "$REPO_ROOT/bazel-bin/src/compiler/grpc_csharp_plugin" protoc_plugins/protoc_linux_s390x/
+++    elif [[ -f "$REPO_ROOT/bazel-bin/src/compiler/grpc_csharp_plugin_native" ]]; then
+++        cp "$REPO_ROOT/bazel-bin/src/compiler/grpc_csharp_plugin_native" protoc_plugins/protoc_linux_s390x/grpc_csharp_plugin
+++    else
+++        echo "Warning: grpc_csharp_plugin not found in bazel-bin"
+++    fi
+++    
+++    # Copy protoc
+++    if [[ -f "$REPO_ROOT/bazel-bin/external/com_google_protobuf/protoc" ]]; then
+++        cp "$REPO_ROOT/bazel-bin/external/com_google_protobuf/protoc" protoc_plugins/protoc_linux_s390x/
+++    else
+++        echo "Warning: protoc not found in bazel-bin"
+++    fi
+++    
+++    # Make binaries executable
+++    chmod +x protoc_plugins/protoc_linux_s390x/* 2>/dev/null || true
++ fi
++ 
++ dotnet restore Grpc.sln
++diff --git a/src/csharp/nuget_helpers/create_fake_native_artifacts.sh b/src/csharp/nuget_helpers/create_fake_native_artifacts.sh
++index 9f568fc891..db90780f4f 100755
++--- a/src/csharp/nuget_helpers/create_fake_native_artifacts.sh
+++++ b/src/csharp/nuget_helpers/create_fake_native_artifacts.sh
++@@ -41,6 +41,21 @@ then
++   touch protoc_linux_aarch64/grpc_csharp_plugin
++ fi
++ 
+++# On s390x Linux, we still need to fake other Linux arch directories for packaging
+++if [[ "$(uname -m)" == "s390x" ]]; then
+++    mkdir -p protoc_linux_x64
+++    touch protoc_linux_x64/protoc
+++    touch protoc_linux_x64/grpc_csharp_plugin
+++
+++    mkdir -p protoc_linux_x86
+++    touch protoc_linux_x86/protoc
+++    touch protoc_linux_x86/grpc_csharp_plugin
+++
+++    mkdir -p protoc_linux_aarch64
+++    touch protoc_linux_aarch64/protoc
+++    touch protoc_linux_aarch64/grpc_csharp_plugin
+++fi
+++
++ if [[ "$(uname)" != "Darwin" ]]
++ then
++     mkdir -p protoc_macos_x64
+diff --git a/src/csharp/BUILD-s390x.md b/src/csharp/BUILD-s390x.md
+new file mode 100644
+index 0000000000..beb6b51436
+--- /dev/null
++++ b/src/csharp/BUILD-s390x.md
+@@ -0,0 +1,123 @@
++# Building gRPC C# Tools on s390x (IBM System z)
++
++This document describes how to build gRPC C# Tools on s390x architecture.
++
++## Prerequisites
++
++### 1. Install Build Dependencies
++```bash
++sudo dnf install -y git wget java-21-openjdk-devel python3 zip unzip gcc cmake gcc-c++ automake jq patch
++```
++
++### 2. Install .NET SDK
++```bash
++# Install .NET 6.0 or later
++sudo dnf install -y dotnet-sdk-6.0
++```
++
++### 3. Build Bazel from Source
++
++s390x does not have prebuilt Bazel binaries, so you must build Bazel from source:
++
++```bash
++# Get Bazel version required by gRPC
++BAZEL_VERSION=$(cat .bazelversion)
++
++# Create build directory
++mkdir -p ../bazel-build
++cd ../bazel-build
++
++# Download Bazel source
++wget https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-dist.zip
++unzip bazel-${BAZEL_VERSION}-dist.zip
++rm bazel-${BAZEL_VERSION}-dist.zip
++
++# Build Bazel
++env EXTRA_BAZEL_ARGS="--tool_java_runtime_version=local_jdk" bash ./compile.sh
++
++# Install Bazel system-wide or add to PATH
++sudo cp output/bazel /usr/local/bin/
++# OR add to PATH: export PATH=$PATH:$(pwd)/output/
++
++cd ../grpc
++```
++
++## Building gRPC C# Tools
++
++### 1. Build Native Components
++```bash
++# Build protoc and gRPC compiler plugins
++bazel build @com_google_protobuf//:protoc //src/compiler:all
++```
++
++### 2. Build C# Package
++```bash
++cd src/csharp
++OPENSSL_ENABLE_SHA1_SIGNATURES=1 ./build_nuget.sh
++```
++
++### 3. Verify Build
++The build will create:
++- `../../artifacts/Grpc.Tools.X.Y.Z-s390x.nupkg` - NuGet package for s390x
++- Native binaries in `protoc_plugins/protoc_linux_s390x/`
++
++## Architecture-Specific Behavior
++
++### Bazel Wrapper
++The `tools/bazel` wrapper automatically detects s390x and:
++1. Shows informational messages about s390x limitations
++2. Falls back to system `bazel` if available
++3. Provides helpful links for building Bazel from source
++
++### Build Scripts
++The C# build process automatically:
++1. Enables single-platform build mode on s390x
++2. Uses locally built binaries instead of prebuilt artifacts
++3. Creates fake artifacts for other architectures (for packaging)
++4. Adds `-s390x` suffix to package version for identification
++
++### Package Contents
++The resulting NuGet package includes:
++- `tools/linux_s390x/protoc` - Protocol buffer compiler
++- `tools/linux_s390x/grpc_csharp_plugin` - gRPC C# code generator
++- Placeholder files for other architectures
++
++## Troubleshooting
++
++### Build Fails with Missing Bazel
++```
++ERROR: No bazel found in PATH. Please install Bazel for s390x.
++```
++**Solution**: Follow the "Build Bazel from Source" steps above.
++
++### Permission Denied Copying Files
++```
++cp: cannot create regular file 'protoc_plugins/protoc_linux_s390x/protoc': Permission denied
++```
++**Solution**: The build script automatically handles this by cleaning the directory first.
++
++### Missing Protoc/Plugin Files
++```
++Warning: grpc_csharp_plugin not found in bazel-bin
++```
++**Solution**: Ensure the Bazel build completed successfully:
++```bash
++bazel build @com_google_protobuf//:protoc //src/compiler:all
++ls -la bazel-bin/src/compiler/grpc_csharp_plugin*
++ls -la bazel-bin/external/com_google_protobuf/protoc
++```
++
++## Integration with ASP.NET Core
++
++When using this package with ASP.NET Core builds:
++1. The package will be automatically selected on s390x systems
++2. The `-s390x` suffix clearly identifies the architecture-specific package
++3. All gRPC code generation will work normally
++
++## Limitations
++
++1. **Single-platform package**: The s390x package only works on s390x systems
++2. **Manual Bazel build**: Requires building Bazel from source (one-time setup)
++3. **Local compilation**: Must compile protoc/plugins locally (automated by build script)
++
++These limitations are fundamental to the s390x architecture support landscape and follow the same patterns used by other architectures that lack prebuilt tooling.
+diff --git a/src/csharp/Grpc.Tools.Tests/ProtoToolsPlatformTaskTest.cs b/src/csharp/Grpc.Tools.Tests/ProtoToolsPlatformTaskTest.cs
+index 51b65c5bee..3aa749b677 100644
+--- a/src/csharp/Grpc.Tools.Tests/ProtoToolsPlatformTaskTest.cs
++++ b/src/csharp/Grpc.Tools.Tests/ProtoToolsPlatformTaskTest.cs
+@@ -91,6 +91,16 @@ namespace Grpc.Tools.Tests
+             }
+         }
+ 
++        [Test]
++        public void CpuIsS390x()
++        {
++            if (RuntimeInformation.OSArchitecture == Architecture.S390x)
++            {
++                _cpuMatched++;
++                Assert.AreEqual("s390x", _task.Cpu);
++            }
++        }
++
+         [Test]
+         public void OsIsWindows()
+         {
+diff --git a/src/csharp/Grpc.Tools/CommonPlatformDetection.cs b/src/csharp/Grpc.Tools/CommonPlatformDetection.cs
+index 56e24b877b..8f6aa4b9de 100644
+--- a/src/csharp/Grpc.Tools/CommonPlatformDetection.cs
++++ b/src/csharp/Grpc.Tools/CommonPlatformDetection.cs
+@@ -29,7 +29,7 @@ namespace Grpc.Core.Internal
+     internal static class CommonPlatformDetection
+     {
+         public enum OSKind { Unknown, Windows, Linux, MacOSX };
+-        public enum CpuArchitecture { Unknown, X86, X64, Arm64 };
++        public enum CpuArchitecture { Unknown, X86, X64, Arm64, S390x };
+ 
+         public static OSKind GetOSKind()
+         {
+@@ -85,6 +85,8 @@ namespace Grpc.Core.Internal
+                     return CpuArchitecture.X64;
+                 case Architecture.Arm64:
+                     return CpuArchitecture.Arm64;
++                case Architecture.S390x:
++                    return CpuArchitecture.S390x;
+                 // We do not support other architectures,
+                 // so we simply return "unrecognized".
+                 default: 
+diff --git a/src/csharp/Grpc.Tools/Grpc.Tools.csproj b/src/csharp/Grpc.Tools/Grpc.Tools.csproj
+index 725fd3e0e3..51a8c77380 100644
+--- a/src/csharp/Grpc.Tools/Grpc.Tools.csproj
++++ b/src/csharp/Grpc.Tools/Grpc.Tools.csproj
+@@ -58,6 +58,7 @@
+     <_Asset PackagePath="tools/linux_x86/" Include="$(Assets_ProtoCompiler)linux_x86/protoc" />
+     <_Asset PackagePath="tools/linux_x64/" Include="$(Assets_ProtoCompiler)linux_x64/protoc" />
+     <_Asset PackagePath="tools/linux_arm64/" Include="$(Assets_ProtoCompiler)linux_aarch64/protoc" />
++    <_Asset PackagePath="tools/linux_s390x/" Include="$(Assets_ProtoCompiler)linux_s390x/protoc" />
+     <_Asset PackagePath="tools/macosx_x64/" Include="$(Assets_ProtoCompiler)macos_x64/protoc" /> 
+ 
+     <!-- gRPC protocol buffer compiler plugins -->
+@@ -66,6 +67,7 @@
+     <_Asset PackagePath="tools/linux_x86/" Include="$(Assets_GrpcPlugins)protoc_linux_x86/grpc_csharp_plugin" />
+     <_Asset PackagePath="tools/linux_x64/" Include="$(Assets_GrpcPlugins)protoc_linux_x64/grpc_csharp_plugin" />
+     <_Asset PackagePath="tools/linux_arm64/" Include="$(Assets_GrpcPlugins)protoc_linux_aarch64/grpc_csharp_plugin" />
++    <_Asset PackagePath="tools/linux_s390x/" Include="$(Assets_GrpcPlugins)protoc_linux_s390x/grpc_csharp_plugin" />
+     <_Asset PackagePath="tools/macosx_x64/" Include="$(Assets_GrpcPlugins)protoc_macos_x64/grpc_csharp_plugin" />
+ 
+     <None Include="@(_Asset)" Pack="true" Visible="false" />
+diff --git a/src/csharp/Grpc.Tools/ProtoToolsPlatform.cs b/src/csharp/Grpc.Tools/ProtoToolsPlatform.cs
+index 0bb57317b4..cb3b800332 100644
+--- a/src/csharp/Grpc.Tools/ProtoToolsPlatform.cs
++++ b/src/csharp/Grpc.Tools/ProtoToolsPlatform.cs
+@@ -57,6 +57,7 @@ namespace Grpc.Tools
+                 case CommonPlatformDetection.CpuArchitecture.X86: Cpu = "x86"; break;
+                 case CommonPlatformDetection.CpuArchitecture.X64: Cpu = "x64"; break;
+                 case CommonPlatformDetection.CpuArchitecture.Arm64: Cpu = "arm64"; break;
++                case CommonPlatformDetection.CpuArchitecture.S390x: Cpu = "s390x"; break;
+                 default: Cpu = ""; break;
+             }
+ 
+diff --git a/src/csharp/build_nuget.sh b/src/csharp/build_nuget.sh
+index a521e003c5..4d1962bb28 100755
+--- a/src/csharp/build_nuget.sh
++++ b/src/csharp/build_nuget.sh
+@@ -20,8 +20,14 @@ cd "$(dirname "$0")"
+ mkdir -p ../../artifacts
+ 
+ # Collect protoc artifacts built by the previous build step
++# On s390x, we build locally instead of using prebuilt artifacts
+ mkdir -p protoc_plugins
+-cp -r "${EXTERNAL_GIT_ROOT}"/input_artifacts/protoc_* protoc_plugins || true
++if [[ "$(uname -m)" != "s390x" ]]; then
++    cp -r "${EXTERNAL_GIT_ROOT}"/input_artifacts/protoc_* protoc_plugins || true
++else
++    # For s390x, enable single-platform build mode
++    export GRPC_CSHARP_BUILD_SINGLE_PLATFORM_NUGET=1
++fi
+ 
+ # Add current timestamp to dev nugets
+ ./nuget_helpers/expand_dev_version.sh
+@@ -47,7 +53,39 @@ then
+   # add a suffix to the nuget's version
+   # to avoid confusing the package with a full nuget package.
+   # NOTE: adding the suffix must be done AFTER expand_dev_version.sh has run.
+-  sed -ibak "s/<\/GrpcCsharpVersion>/-singleplatform<\/GrpcCsharpVersion>/" build/dependencies.props
++  ARCH_SUFFIX="-singleplatform"
++  if [[ "$(uname -m)" == "s390x" ]]; then
++      ARCH_SUFFIX="-s390x"
++  fi
++  sed -ibak "s/<\/GrpcCsharpVersion>/${ARCH_SUFFIX}<\/GrpcCsharpVersion>/" build/dependencies.props
++fi
++
++# Copy locally built s390x binaries if available
++if [[ "$(uname -m)" == "s390x" ]]; then
++    REPO_ROOT="$(cd ../.. && pwd)"
++    
++    # Clean and recreate the s390x directory to avoid permission issues
++    rm -rf protoc_plugins/protoc_linux_s390x
++    mkdir -p protoc_plugins/protoc_linux_s390x
++    
++    # Try different possible grpc_csharp_plugin names from Bazel build
++    if [[ -f "$REPO_ROOT/bazel-bin/src/compiler/grpc_csharp_plugin" ]]; then
++        cp "$REPO_ROOT/bazel-bin/src/compiler/grpc_csharp_plugin" protoc_plugins/protoc_linux_s390x/
++    elif [[ -f "$REPO_ROOT/bazel-bin/src/compiler/grpc_csharp_plugin_native" ]]; then
++        cp "$REPO_ROOT/bazel-bin/src/compiler/grpc_csharp_plugin_native" protoc_plugins/protoc_linux_s390x/grpc_csharp_plugin
++    else
++        echo "Warning: grpc_csharp_plugin not found in bazel-bin"
++    fi
++    
++    # Copy protoc
++    if [[ -f "$REPO_ROOT/bazel-bin/external/com_google_protobuf/protoc" ]]; then
++        cp "$REPO_ROOT/bazel-bin/external/com_google_protobuf/protoc" protoc_plugins/protoc_linux_s390x/
++    else
++        echo "Warning: protoc not found in bazel-bin"
++    fi
++    
++    # Make binaries executable
++    chmod +x protoc_plugins/protoc_linux_s390x/* 2>/dev/null || true
+ fi
+ 
+ dotnet restore Grpc.sln
+diff --git a/src/csharp/nuget_helpers/create_fake_native_artifacts.sh b/src/csharp/nuget_helpers/create_fake_native_artifacts.sh
+index 9f568fc891..db90780f4f 100755
+--- a/src/csharp/nuget_helpers/create_fake_native_artifacts.sh
++++ b/src/csharp/nuget_helpers/create_fake_native_artifacts.sh
+@@ -41,6 +41,21 @@ then
+   touch protoc_linux_aarch64/grpc_csharp_plugin
+ fi
+ 
++# On s390x Linux, we still need to fake other Linux arch directories for packaging
++if [[ "$(uname -m)" == "s390x" ]]; then
++    mkdir -p protoc_linux_x64
++    touch protoc_linux_x64/protoc
++    touch protoc_linux_x64/grpc_csharp_plugin
++
++    mkdir -p protoc_linux_x86
++    touch protoc_linux_x86/protoc
++    touch protoc_linux_x86/grpc_csharp_plugin
++
++    mkdir -p protoc_linux_aarch64
++    touch protoc_linux_aarch64/protoc
++    touch protoc_linux_aarch64/grpc_csharp_plugin
++fi
++
+ if [[ "$(uname)" != "Darwin" ]]
+ then
+     mkdir -p protoc_macos_x64
+diff --git a/tools/bazel b/tools/bazel
+index 6ee1a04002..91212231eb 100755
+--- a/tools/bazel
++++ b/tools/bazel
+@@ -60,6 +60,19 @@ case $(uname -sm) in
+   "Linux aarch64")
+     suffix=linux-arm64
+     ;;
++  "Linux s390x")
++    echo "INFO: s390x architecture detected. Prebuilt Bazel not available for s390x." >&2
++    echo "Please build Bazel from source or ensure 'bazel' is in PATH." >&2
++    echo "See: https://bazel.build/install/compile-source" >&2
++    # Try to use system bazel if available
++    if command -v bazel >/dev/null 2>&1; then
++      echo "INFO: Using system bazel: $(command -v bazel)" >&2
++      exec bazel "$@"
++    else
++      echo "ERROR: No bazel found in PATH. Please install Bazel for s390x." >&2
++      exit 1
++    fi
++    ;;
+   "Darwin x86_64")
+     suffix=darwin-x86_64
+     ;;
